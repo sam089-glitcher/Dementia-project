@@ -24,44 +24,43 @@ wheels/
 venv/
 env/
 ENV/
-
-# Data files
-data/raw/*
-data/processed/*
-*.csv
-*.parquet
-*.h5
-*.pkl
-*.joblib
-
-# Models
-models/*.pkl
-models/*.h5
-models/*.pt
-mlruns/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
+.venv
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Data files
+data/raw/
+data/processed/
+*.csv
+*.parquet
+*.pkl
+*.joblib
+
+# Models
+models/*.pkl
+models/*.joblib
+models/*.h5
+
+# Logs
+*.log
+logs/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Reports
-reports/*.png
-reports/*.pdf
-reports/*.html
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
 
-# Logs
-*.log
-
-# Environment variables
-.env
-.env.local
+# Streamlit
+.streamlit/secrets.toml

@@ -55,6 +55,12 @@ class PatientFeatures(BaseModel):
     smoking_status: Optional[int] = 0
 
 
+class RiskFactor(BaseModel):
+    """Risk or protective factor."""
+    factor: str
+    impact: float
+
+
 class RecommendationResponse(BaseModel):
     """Dietary recommendation response."""
     patient_id: Optional[str] = None
@@ -65,8 +71,8 @@ class RecommendationResponse(BaseModel):
     post_intervention_risk: float
     
     # Explanation
-    top_risk_factors: List[Dict[str, float]]
-    top_protective_factors: List[Dict[str, float]]
+    top_risk_factors: List[RiskFactor]
+    top_protective_factors: List[RiskFactor]
     
     # Dietary recommendations
     specific_recommendations: List[str]
@@ -278,20 +284,67 @@ async def population_analysis(request: PopulationAnalysisRequest):
 
 def estimate_baseline_risk(patient_df: pd.DataFrame) -> float:
     """Estimate baseline dementia risk."""
-    # Simplified risk estimation
+    # More comprehensive risk estimation
     age = patient_df['age'].values[0]
-    apoe = patient_df['apoe_e4_carrier'].values[0]
+    apoe = patient_df['apoe_e4_carrier'].values[0] if 'apoe_e4_carrier' in patient_df.columns else 0
+    mind_score = patient_df['mind_score'].values[0] if 'mind_score' in patient_df.columns else 5.0
+    bmi = patient_df['bmi'].values[0] if 'bmi' in patient_df.columns else 25.0
+    education = patient_df['education'].values[0] if 'education' in patient_df.columns else 12
+    physical_activity = patient_df['physical_activity_level'].values[0] if 'physical_activity_level' in patient_df.columns else 1
+    smoking = patient_df['smoking_status'].values[0] if 'smoking_status' in patient_df.columns else 0
     
-    risk = 0.05  # Baseline 5%
+    # Age-based baseline risk (exponential increase with age)
+    if age < 50:
+        risk = 0.01  # 1% - very low
+    elif age < 60:
+        risk = 0.02  # 2%
+    elif age < 65:
+        risk = 0.04  # 4%
+    elif age < 70:
+        risk = 0.08  # 8%
+    elif age < 75:
+        risk = 0.12  # 12%
+    elif age < 80:
+        risk = 0.18  # 18%
+    else:
+        risk = 0.25  # 25% - high risk for very old
     
-    if age > 65:
-        risk += 0.10
-    if age > 75:
-        risk += 0.15
+    # APOE ε4 carrier (major genetic risk factor)
     if apoe == 1:
-        risk += 0.20
+        risk *= 2.0  # Doubles the risk
     
-    return min(risk, 0.80)  # Cap at 80%
+    # Diet quality (protective)
+    if mind_score < 5:
+        risk *= 1.3  # 30% increase for poor diet
+    elif mind_score > 9:
+        risk *= 0.7  # 30% reduction for excellent diet
+    
+    # BMI (obesity increases risk)
+    if bmi > 30:
+        risk *= 1.2  # 20% increase
+    elif bmi < 20:
+        risk *= 1.1  # 10% increase (underweight also risky)
+    
+    # Education (protective)
+    if education < 12:
+        risk *= 1.15  # 15% increase
+    elif education >= 16:
+        risk *= 0.9  # 10% reduction
+    
+    # Physical activity (protective)
+    if physical_activity >= 3:
+        risk *= 0.85  # 15% reduction
+    elif physical_activity <= 1:
+        risk *= 1.1  # 10% increase
+    
+    # Smoking (major risk factor)
+    if smoking == 2:  # Current smoker
+        risk *= 1.4  # 40% increase
+    
+    # Cap the risk between 1% and 60%
+    risk = max(0.01, min(0.60, risk))
+    
+    return risk
 
 
 def estimate_treatment_effect(patient_df: pd.DataFrame) -> float:
@@ -300,26 +353,60 @@ def estimate_treatment_effect(patient_df: pd.DataFrame) -> float:
     # In production, use actual trained model
     
     age = patient_df['age'].values[0]
-    mind_score = patient_df['mind_score'].values[0]
-    apoe = patient_df['apoe_e4_carrier'].values[0]
+    mind_score = patient_df['mind_score'].values[0] if 'mind_score' in patient_df.columns else 5.0
+    apoe = patient_df['apoe_e4_carrier'].values[0] if 'apoe_e4_carrier' in patient_df.columns else 0
+    bmi = patient_df['bmi'].values[0] if 'bmi' in patient_df.columns else 25.0
+    education = patient_df['education'].values[0] if 'education' in patient_df.columns else 12
+    physical_activity = patient_df['physical_activity_level'].values[0] if 'physical_activity_level' in patient_df.columns else 1
     
-    cate = 0.05  # Base effect
+    # Base effect varies by age group
+    if age < 60:
+        base_effect = 0.12  # 12% - younger patients benefit more
+    elif age < 70:
+        base_effect = 0.08  # 8% - middle-aged
+    elif age < 80:
+        base_effect = 0.06  # 6% - older
+    else:
+        base_effect = 0.04  # 4% - very old, less benefit
     
-    # Higher effect for APOE ε4 carriers
+    cate = base_effect
+    
+    # Higher effect for APOE ε4 carriers (they benefit more from intervention)
     if apoe == 1:
-        cate += 0.03
+        cate *= 1.4  # 40% increase in effect
     
-    # Effect diminishes with age
-    if age > 75:
-        cate *= 0.7
+    # Lower current diet score → more potential benefit
+    if mind_score < 5:
+        cate *= 1.5  # 50% more benefit if starting from low diet score
+    elif mind_score < 7:
+        cate *= 1.2  # 20% more benefit
+    elif mind_score > 9:
+        cate *= 0.6  # 40% less benefit if already eating well
     
-    # Already high diet score → less benefit
-    if mind_score > 8:
-        cate *= 0.5
+    # BMI effects (obesity is a risk factor)
+    if bmi > 30:
+        cate *= 1.2  # More benefit for obese patients
+    elif bmi < 20:
+        cate *= 0.9  # Slightly less benefit
+    
+    # Education (proxy for health literacy and adherence)
+    if education < 12:
+        cate *= 0.85  # Lower adherence expected
+    elif education >= 16:
+        cate *= 1.1  # Better adherence
+    
+    # Physical activity (synergistic effect)
+    if physical_activity >= 3:
+        cate *= 1.15  # Exercise + diet = better outcomes
+    
+    # Cap the effect between 2% and 20%
+    cate = max(0.02, min(0.20, cate))
     
     return cate
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

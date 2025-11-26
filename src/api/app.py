@@ -16,8 +16,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# API endpoint
-API_URL = "http://localhost:8000"
+# API endpoint - use environment variable or default to localhost
+import os
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 # Title and description
 st.title("🧠 Personalized Dementia Prevention Advisor")
