@@ -29,7 +29,13 @@ This guide covers multiple options for hosting your Dementia Prevention Advisor 
    - In Streamlit Cloud settings, add:
      - `API_URL`: Your API URL (if hosting API separately)
 
-**Note:** For full functionality, you'll need to host the API separately (see Option 2 or 3).
+4. **Point to the Lightweight Requirements File**
+   - Streamlit Cloud installs dependencies from the requirements file you specify.
+   - Heavy causal-inference libraries in `requirements.txt` cannot compile in Streamlit Cloud’s restricted build environment.
+   - In **Advanced settings → Python dependencies file**, set the path to `requirements-streamlit.txt`.
+   - This trimmed file only includes what the UI needs (`streamlit`, `pandas`, `numpy`, `plotly`, `requests`).
+
+**Note:** For full functionality, you'll still need to host the API separately (see Option 2 or 3).
 
 ---
 
